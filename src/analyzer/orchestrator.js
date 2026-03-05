@@ -39,12 +39,15 @@ async function runAnalysis(octokit, payload) {
         });
 
         // 4. Heuristics Analysis
+        logger.info({ fileCount: filteredFiles.length }, 'Running heuristics analysis');
         const heuristics = calculateHeuristicRisk(filteredFiles, diff);
 
         // 5. AI Analysis
+        logger.info('Calling Gemini AI for diff analysis');
         const aiResult = await analyzeDiffWithAI(diff, filteredFiles);
 
         // 6. Combine Results
+        logger.info({ aiScore: aiResult.riskScore, heuristicScore: heuristics.score }, 'Combining results');
         const finalRiskScore = Math.max(heuristics.score, aiResult.riskScore);
         const allReasons = [...new Set([...heuristics.reasons, ...aiResult.reasons])];
 

@@ -49,10 +49,22 @@ async function handlePullRequest(payload) {
         // 2. Get Octokit instance for this installation
         const octokit = await getInstallationOctokit(installation.id);
 
-        // 3. Kick off analysis (don't await to avoid webhook timeout)
-        runAnalysis(octokit, payload).catch(err => {
-            logger.error({ err, pr: pr.number }, 'Background analysis failed');
-        });
+        // 3. Kick off analysis (AWAIT for Vercel persistence)
+        let analysisPayload = payload;
+
+        // If it's a check_suite event, we need to extract the PR
+        if (payload.check_suite && payload.check_suite.pull_requests && payload.check_suite.pull_requests.length > 0) {
+            analysisPayload = {
+                ...payload,
+                pull_request: payload.check_suite.pull_requests[0]
+            };
+        }
+
+        if (analysisPayload.pull_request) {
+            await runAnalysis(octokit, analysisPayload);
+        } else {
+            logger.info('No pull request found in payload, skipping analysis');
+        }
     }
 
     return { success: true };

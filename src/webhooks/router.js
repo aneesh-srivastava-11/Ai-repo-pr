@@ -14,13 +14,18 @@ router.post('/', verifySignature, async (req, res) => {
     try {
         if (event === 'pull_request') {
             await handlePullRequest(req.body);
+        } else if (event === 'check_suite') {
+            const { action } = req.body;
+            if (action === 'requested' || action === 'rerequested') {
+                await handlePullRequest(req.body);
+            }
         } else if (event === 'ping') {
             return res.status(200).send('PONG');
         } else {
-            logger.debug({ event }, 'Ignored event');
+            logger.info({ event }, 'Ignored event');
         }
 
-        res.status(202).json({ message: 'Accepted' });
+        res.status(200).json({ message: 'Processed' });
     } catch (error) {
         logger.error({ error, deliveryId }, 'Error processing webhook');
         res.status(500).json({ error: 'Internal Server Error' });
