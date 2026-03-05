@@ -4,11 +4,27 @@ const { getInstallationOctokit } = require('../github/auth');
 const { logger } = require('../utils/logger');
 
 async function handlePullRequest(payload) {
-    const { action, pull_request: pr, repository: repo, installation } = payload;
+    const { action, repository: repo, installation } = payload;
 
-    logger.info({ action, pr: pr.number, repo: repo.full_name }, 'Handling PR event');
+    // Normalize pull_request object from either 'pull_request' or 'check_suite' events
+    let pr = payload.pull_request;
 
-    if (['opened', 'synchronize', 'reopened'].includes(action)) {
+    if (!pr && payload.check_suite && payload.check_suite.pull_requests && payload.check_suite.pull_requests.length > 0) {
+        pr = payload.check_suite.pull_requests[0];
+    }
+
+    if (!pr) {
+        logger.info({ action, event: payload.check_suite ? 'check_suite' : 'unknown' }, 'No pull request found in payload, skipping');
+        return { success: true };
+    }
+
+    logger.info({ action, pr: pr.number, repo: repo.full_name }, 'Handling event for PR');
+
+    // Trigger analysis for PR opened/sync OR check_suite requested/rerequested
+    const isPrAction = ['opened', 'synchronize', 'reopened'].includes(action);
+    const isCheckAction = ['requested', 'rerequested'].includes(action);
+
+    if (isPrAction || isCheckAction) {
         // 1. Ensure Repo and PR exist in DB
         await prisma.repository.upsert({
             where: { id: repo.id },
@@ -27,21 +43,21 @@ async function handlePullRequest(payload) {
             },
         });
 
+        // For check_suite events, the PR object might be partial, but we need the ID
         await prisma.pullRequest.upsert({
             where: { id: pr.id },
             update: {
                 number: pr.number,
-                title: pr.title,
-                state: pr.state,
-                headSha: pr.head.sha,
+                state: pr.state || 'open',
+                headSha: pr.head ? pr.head.sha : (payload.check_suite ? payload.check_suite.head_sha : ''),
                 repositoryId: repo.id,
             },
             create: {
                 id: pr.id,
                 number: pr.number,
-                title: pr.title,
-                state: pr.state,
-                headSha: pr.head.sha,
+                title: pr.title || `PR #${pr.number}`,
+                state: pr.state || 'open',
+                headSha: pr.head ? pr.head.sha : (payload.check_suite ? payload.check_suite.head_sha : ''),
                 repositoryId: repo.id,
             },
         });
@@ -50,20 +66,20 @@ async function handlePullRequest(payload) {
         const octokit = await getInstallationOctokit(installation.id);
 
         // 3. Kick off analysis (AWAIT for Vercel persistence)
-        let analysisPayload = payload;
+        // Ensure we pass a normalized payload to runAnalysis
+        const analysisPayload = {
+            ...payload,
+            pull_request: pr
+        };
 
-        // If it's a check_suite event, we need to extract the PR
-        if (payload.check_suite && payload.check_suite.pull_requests && payload.check_suite.pull_requests.length > 0) {
-            analysisPayload = {
-                ...payload,
-                pull_request: payload.check_suite.pull_requests[0]
-            };
-        }
-
-        if (analysisPayload.pull_request) {
+        if (analysisPayload.pull_request.head || (payload.check_suite && payload.check_suite.head_sha)) {
+            // Ensure headSha is available for orchestrator
+            if (!analysisPayload.pull_request.head && payload.check_suite) {
+                analysisPayload.pull_request.head = { sha: payload.check_suite.head_sha };
+            }
             await runAnalysis(octokit, analysisPayload);
         } else {
-            logger.info('No pull request found in payload, skipping analysis');
+            logger.error('Could not determine head SHA for analysis');
         }
     }
 

@@ -9,26 +9,55 @@ async function runAnalysis(octokit, payload) {
     const { pull_request: pr, repository: repo } = payload;
     const owner = repo.owner.login;
     const repoName = repo.name;
-    const headSha = pr.head.sha;
+    const headSha = pr.head ? pr.head.sha : (payload.check_suite ? payload.check_suite.head_sha : null);
+
+    if (!headSha) {
+        logger.error({ pr: pr.number }, 'No head SHA found for analysis');
+        return;
+    }
 
     logger.info({ pr: pr.number, repo: repo.full_name, sha: headSha }, 'Starting PR analysis');
 
     // 1. Create Initial Check Run (In Progress)
-    const check = await createCheckRun(octokit, {
-        owner,
-        repo: repoName,
-        head_sha: headSha,
-        name: 'AI Risk Analyzer',
-        status: 'in_progress',
-    });
+    let check;
+    try {
+        check = await createCheckRun(octokit, {
+            owner,
+            repo: repoName,
+            head_sha: headSha,
+            name: 'AI Risk Analyzer',
+            status: 'in_progress',
+        });
+        logger.info({ checkId: check.id }, 'Created initial check run');
+    } catch (error) {
+        logger.error({ error }, 'Failed to create initial check run');
+        return;
+    }
 
     try {
         // 2. Fetch Diff
+        logger.info('Fetching PR diff from GitHub');
         const { files, diff } = await getPullRequestDiff(octokit, {
             owner,
             repo: repoName,
             pull_number: pr.number,
         });
+
+        if (!diff || files.length === 0) {
+            logger.info('No changes found in PR, skipping AI analysis');
+            await updateCheckRun(octokit, {
+                owner,
+                repo: repoName,
+                check_run_id: check.id,
+                status: 'completed',
+                conclusion: 'success',
+                output: {
+                    title: 'No Changes Detected',
+                    summary: 'This PR appears to have no files changed or is empty.',
+                },
+            });
+            return;
+        }
 
         // 3. Filter generated files
         const filteredFiles = files.filter(f => {
@@ -66,30 +95,36 @@ async function runAnalysis(octokit, payload) {
         }
 
         // 7. Store in DB
-        await prisma.analysis.upsert({
-            where: {
-                pullRequestId_commitSha: {
+        logger.info('Storing analysis results in database');
+        try {
+            await prisma.analysis.upsert({
+                where: {
+                    pullRequestId_commitSha: {
+                        pullRequestId: pr.id,
+                        commitSha: headSha,
+                    },
+                },
+                update: {
+                    riskScore: finalRiskScore,
+                    summary: summaryText,
+                    reasons: allReasons,
+                    checklist: aiResult.reviewChecklist,
+                },
+                create: {
                     pullRequestId: pr.id,
                     commitSha: headSha,
+                    riskScore: finalRiskScore,
+                    summary: summaryText,
+                    reasons: allReasons,
+                    checklist: aiResult.reviewChecklist,
                 },
-            },
-            update: {
-                riskScore: finalRiskScore,
-                summary: summaryText,
-                reasons: allReasons,
-                checklist: aiResult.reviewChecklist,
-            },
-            create: {
-                pullRequestId: pr.id,
-                commitSha: headSha,
-                riskScore: finalRiskScore,
-                summary: summaryText,
-                reasons: allReasons,
-                checklist: aiResult.reviewChecklist,
-            },
-        });
+            });
+        } catch (dbError) {
+            logger.warn({ dbError }, 'Failed to store analysis in database, proceeding to update GitHub check');
+        }
 
         // 8. Update Check Run
+        logger.info('Updating GitHub Check Run with final results');
         await updateCheckRun(octokit, {
             owner,
             repo: repoName,
