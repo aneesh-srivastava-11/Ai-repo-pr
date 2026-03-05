@@ -3,7 +3,7 @@
 An AI-powered quality gate for your Pull Requests. This app automatically analyzes diffs using Gemini AI and a set of safety heuristics, then publishes a GitHub Check Run (SAFE, REVIEW, or BLOCK).
 
 ## Features
-- **AI Analysis:** Uses Gemini Pro to understand the intent and risk of changes.
+- **AI Analysis:** Uses Gemini  to understand the intent and risk of changes.
 - **Safety Heuristics:** Automatically flags changes to auth, config, and critical system paths.
 - **GitHub Checks:** Integrates directly into the GitHub UI (no comment spam).
 - **MongoDB Persistence:** Tracks repository and analysis history.
