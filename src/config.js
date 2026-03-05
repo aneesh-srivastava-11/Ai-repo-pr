@@ -1,7 +1,5 @@
-import dotenv from 'dotenv';
-import { z } from 'zod';
-
-dotenv.config();
+require('dotenv').config();
+const { z } = require('zod');
 
 const envSchema = z.object({
     PORT: z.string().default('3000'),
@@ -12,4 +10,6 @@ const envSchema = z.object({
     GEMINI_API_KEY: z.string(),
 });
 
-export const config = envSchema.parse(process.env);
+const config = envSchema.parse(process.env);
+
+module.exports = { config };

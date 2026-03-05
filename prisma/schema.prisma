@@ -3,12 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model Repository {
-  id           Int      @id // GitHub Repo ID
+  id           Int      @id @map("_id") // GitHub Repo ID
   name         String
   fullName     String
   owner        String
@@ -20,7 +20,7 @@ model Repository {
 }
 
 model PullRequest {
-  id           Int      @id // GitHub PR ID
+  id           Int      @id @map("_id") // GitHub PR ID
   number       Int
   title        String
   state        String
@@ -34,7 +34,7 @@ model PullRequest {
 }
 
 model Analysis {
-  id            String   @id @default(uuid())
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
   pullRequestId Int
   commitSha     String
   riskScore     Int
