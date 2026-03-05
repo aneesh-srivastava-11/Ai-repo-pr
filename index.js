@@ -1,7 +1,7 @@
 const express = require('express');
-const { config } = require('../src/config');
-const { logger } = require('../src/utils/logger');
-const { webhookRouter } = require('../src/webhooks/router');
+const { config } = require('./src/config');
+const { logger } = require('./src/utils/logger');
+const { webhookRouter } = require('./src/webhooks/router');
 
 const app = express();
 

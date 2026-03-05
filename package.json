@@ -2,10 +2,10 @@
     "name": "ai-pr-handler",
     "version": "1.0.0",
     "description": "AI GitHub Pull Request Risk Analyzer",
-    "main": "src/index.js",
+    "main": "index.js",
     "scripts": {
-        "start": "node src/index.js",
-        "dev": "node --watch src/index.js",
+        "start": "node index.js",
+        "dev": "node --watch index.js",
         "db:push": "prisma db push",
         "db:generate": "prisma generate",
         "postinstall": "prisma generate"
