@@ -7,7 +7,18 @@ const app = express();
 
 // Root handler to prevent 404/500 on base URL
 app.get('/', (req, res) => {
-    res.status(200).send('AI PR Risk Analyzer is running!');
+    const diagnostics = {
+        status: 'AI PR Risk Analyzer is running!',
+        env: {
+            nodeEnv: process.env.NODE_ENV,
+            hasAppId: !!config.GITHUB_APP_ID,
+            hasPrivateKey: !!config.GITHUB_PRIVATE_KEY,
+            hasWebhookSecret: !!config.GITHUB_WEBHOOK_SECRET,
+            hasGeminiKey: !!config.GEMINI_API_KEY,
+            hasDatabaseUrl: !!config.DATABASE_URL
+        }
+    };
+    res.status(200).json(diagnostics);
 });
 
 // Middleware to capture raw body for signature verification

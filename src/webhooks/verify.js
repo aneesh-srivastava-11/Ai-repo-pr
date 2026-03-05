@@ -17,7 +17,11 @@ function verifySignature(req, res, next) {
     const digest = 'sha256=' + hmac.update(req.rawBody).digest('hex');
 
     if (signature !== digest) {
-        logger.error({ signature, digest }, 'Invalid signature');
+        logger.error({
+            receivedSignature: signature.substring(0, 15) + '...',
+            calculatedDigest: digest.substring(0, 15) + '...',
+            secretConfigured: !!config.GITHUB_WEBHOOK_SECRET
+        }, 'Invalid signature comparison');
         return res.status(401).send('Invalid signature');
     }
 

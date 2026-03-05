@@ -15,9 +15,21 @@ function getGitHubApp() {
             throw new Error('Missing GitHub App credentials');
         }
 
+        // Handle escaped newlines if the key was pasted into Vercel UI incorrectly
+        const formattedKey = config.GITHUB_PRIVATE_KEY.includes('\\n')
+            ? config.GITHUB_PRIVATE_KEY.replace(/\\n/g, '\n')
+            : config.GITHUB_PRIVATE_KEY;
+
+        logger.info({
+            appId: config.GITHUB_APP_ID,
+            keyStored: !!config.GITHUB_PRIVATE_KEY,
+            keyFormatted: formattedKey.startsWith('-----BEGIN'),
+            keyLength: formattedKey.length
+        }, 'Initializing GitHub App instance');
+
         appInstance = new App({
             appId: config.GITHUB_APP_ID,
-            privateKey: config.GITHUB_PRIVATE_KEY,
+            privateKey: formattedKey,
             webhooks: {
                 secret: config.GITHUB_WEBHOOK_SECRET || '',
             },
