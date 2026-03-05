@@ -1,9 +1,14 @@
 const express = require('express');
-const { config } = require('./config');
-const { logger } = require('./utils/logger');
-const { webhookRouter } = require('./webhooks/router');
+const { config } = require('../src/config');
+const { logger } = require('../src/utils/logger');
+const { webhookRouter } = require('../src/webhooks/router');
 
 const app = express();
+
+// Root handler to prevent 404/500 on base URL
+app.get('/', (req, res) => {
+    res.status(200).send('AI PR Risk Analyzer is running!');
+});
 
 // Middleware to capture raw body for signature verification
 app.use(express.json({
